@@ -3,16 +3,16 @@ use iced::button::{self, Button};
 use iced::scrollable::{self, Scrollable};
 use iced::text_input::{self, TextInput};
 use iced::{
-    Application, Checkbox, Column, Command, Container, Element, Font, Length,
-    Row, Settings, Text, Subscription,Clipboard, Align
+    Align, Application, Checkbox, Clipboard, Column, Command, Container, Element, Font, Length,
+    Row, Settings, Subscription, Text,
 };
 use std::path::PathBuf;
 
 use serde::{Deserialize, Serialize};
 
 pub fn main() -> iced::Result {
-//    Todos::run(Settings::default())
-    Todos::run(Settings{
+    //    Todos::run(Settings::default())
+    Todos::run(Settings {
         default_font: Some(include_bytes!("../fonts/NotoSansJP-Regular.otf")),
         ..Settings::default()
     })
@@ -48,8 +48,6 @@ enum Message {
     Dropped(iced_native::Event),
 }
 
-
-
 impl Application for Todos {
     type Executor = iced::executor::Default;
     type Message = Message;
@@ -75,7 +73,7 @@ impl Application for Todos {
         iced_native::subscription::events().map(Message::Dropped)
     }
 
-    fn update(&mut self, message: Message,_clipboard: &mut Clipboard,) -> Command<Message> {
+    fn update(&mut self, message: Message, _clipboard: &mut Clipboard) -> Command<Message> {
         match self {
             Todos::Loading => {
                 match message {
@@ -98,19 +96,18 @@ impl Application for Todos {
             Todos::Loaded(state) => {
                 let mut saved = false;
 
-
                 match message {
                     Message::InputChanged(value) => {
                         state.input_value = value;
                     }
-                    Message::CreateTask => {
-                        if !state.input_value.is_empty() {
-                            state
-                                .tasks
-                                .push(Task::new(state.input_value.clone()));
-                            state.input_value.clear();
-                        }
-                    }
+                    //                    Message::CreateTask => {
+                    //                        if !state.input_value.is_empty() {
+                    //                            state
+                    //                                .tasks
+                    //                                .push(Task::new(state.input_value.clone()));
+                    //                            state.input_value.clear();
+                    //                        }
+                    //                    }
                     Message::FilterChanged(filter) => {
                         state.filter = filter;
                     }
@@ -126,13 +123,14 @@ impl Application for Todos {
                         state.saving = false;
                         saved = true;
                     }
-                    Message::Dropped(event) =>  {
+                    Message::Dropped(event) => {
                         if let iced_native::event::Event::Window(we) = event {
                             if let iced_native::window::Event::FileDropped(path) = we {
                                 state.file_path = path;
-                                state
-                                .tasks
-                                .push(Task::new(state.file_path.as_path().display().to_string()));
+                                state.tasks.push(Task::new(
+                                    state.input_value.clone(),
+                                    state.file_path.as_path().display().to_string(),
+                                ));
                             }
                         }
                     }
@@ -173,7 +171,6 @@ impl Application for Todos {
                 filter,
                 tasks,
                 controls,
-                file_path,
                 ..
             }) => {
                 let title = Text::new("todos")
@@ -192,17 +189,8 @@ impl Application for Todos {
                 .size(30)
                 .on_submit(Message::CreateTask);
 
-//                let mut p = file_path.to_str().unwrap_or("").to_string();
-//                if p.is_empty() {
-//                    p = String::from("Nothing")
-//                }
-//                let file_path = Container::new(Text::new(p).size(10)).padding(4);
-
-
                 let controls = controls.view(&tasks, *filter);
-                let filtered_tasks =
-                    tasks.iter().filter(|task| filter.matches(task));
-
+                let filtered_tasks = tasks.iter().filter(|task| filter.matches(task));
 
                 let tasks: Element<_> = if filtered_tasks.count() > 0 {
                     tasks
@@ -210,18 +198,17 @@ impl Application for Todos {
                         .enumerate()
                         .filter(|(_, task)| filter.matches(task))
                         .fold(Column::new().spacing(20), |column, (i, task)| {
-                            column.push(task.view().map(move |message| {
-                                Message::TaskMessage(i, message)
-                            }))
+                            column.push(
+                                task.view()
+                                    .map(move |message| Message::TaskMessage(i, message)),
+                            )
                         })
                         .into()
                 } else {
                     empty_message(match filter {
                         Filter::All => "You have not created a task yet...",
                         Filter::Active => "All your tasks are done! :D",
-                        Filter::Completed => {
-                            "You have not completed a task yet..."
-                        }
+                        Filter::Completed => "You have not completed a task yet...",
                     })
                 };
 
@@ -235,9 +222,7 @@ impl Application for Todos {
 
                 Scrollable::new(scroll)
                     .padding(40)
-                    .push(
-                        Container::new(content).width(Length::Fill).center_x(),
-                    )
+                    .push(Container::new(content).width(Length::Fill).center_x())
                     .into()
             }
         }
@@ -247,6 +232,7 @@ impl Application for Todos {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct Task {
     description: String,
+    file_path: String,
     completed: bool,
     #[serde(skip)]
     state: TaskState,
@@ -281,10 +267,11 @@ pub enum TaskMessage {
 }
 
 impl Task {
-    fn new(description: String) -> Self {
+    fn new(description: String, file_path: String) -> Self {
         Task {
             description,
             completed: false,
+            file_path,
             state: TaskState::Idle {
                 edit_button: button::State::new(),
             },
@@ -298,8 +285,6 @@ impl Task {
             }
             TaskMessage::Edit => {
                 let text_input = text_input::State::focused();
-                //text_input.select_all();
-
                 self.state = TaskState::Editing {
                     text_input,
                     delete_button: button::State::new(),
@@ -322,23 +307,26 @@ impl Task {
     fn view(&mut self) -> Element<TaskMessage> {
         match &mut self.state {
             TaskState::Idle { edit_button } => {
-                let checkbox = Checkbox::new(
-                    self.completed,
-                    &self.description,
-                    TaskMessage::Completed,
-                )
-                .width(Length::Fill);
+                let checkbox =
+                    Checkbox::new(self.completed, &self.description, TaskMessage::Completed)
+                        .width(Length::Fill);
 
-                Row::new()
-                    .spacing(20)
-                    .align_items(Align::Center)
-                    .push(checkbox)
+                let path_text = Text::new(&self.file_path).size(15);
+
+                Column::new()
                     .push(
-                        Button::new(edit_button, edit_icon())
-                            .on_press(TaskMessage::Edit)
-                            .padding(10)
-                            .style(style::Button::Icon),
+                        Row::new()
+                            .spacing(20)
+                            .align_items(Align::Center)
+                            .push(checkbox)
+                            .push(
+                                Button::new(edit_button, edit_icon())
+                                    .on_press(TaskMessage::Edit)
+                                    .padding(10)
+                                    .style(style::Button::Icon),
+                            ),
                     )
+                    .push(path_text)
                     .into()
             }
             TaskState::Editing {
@@ -395,12 +383,11 @@ impl Controls {
 
         let filter_button = |state, label, filter, current_filter| {
             let label = Text::new(label).size(16);
-            let button =
-                Button::new(state, label).style(if filter == current_filter {
-                    style::Button::FilterSelected
-                } else {
-                    style::Button::FilterActive
-                });
+            let button = Button::new(state, label).style(if filter == current_filter {
+                style::Button::FilterSelected
+            } else {
+                style::Button::FilterActive
+            });
 
             button.on_press(Message::FilterChanged(filter)).padding(8)
         };
@@ -570,8 +557,7 @@ impl SavedState {
     async fn save(self) -> Result<(), SaveError> {
         use async_std::prelude::*;
 
-        let json = serde_json::to_string_pretty(&self)
-            .map_err(|_| SaveError::FormatError)?;
+        let json = serde_json::to_string_pretty(&self).map_err(|_| SaveError::FormatError)?;
 
         let path = Self::path();
 
@@ -620,8 +606,7 @@ impl SavedState {
     async fn save(self) -> Result<(), SaveError> {
         let storage = Self::storage().ok_or(SaveError::FileError)?;
 
-        let json = serde_json::to_string_pretty(&self)
-            .map_err(|_| SaveError::FormatError)?;
+        let json = serde_json::to_string_pretty(&self).map_err(|_| SaveError::FormatError)?;
 
         storage
             .set_item("state", &json)
@@ -648,9 +633,7 @@ mod style {
             match self {
                 Button::FilterActive => button::Style::default(),
                 Button::FilterSelected => button::Style {
-                    background: Some(Background::Color(Color::from_rgb(
-                        0.2, 0.2, 0.7,
-                    ))),
+                    background: Some(Background::Color(Color::from_rgb(0.2, 0.2, 0.7))),
                     border_radius: 10.0,
                     text_color: Color::WHITE,
                     ..button::Style::default()
@@ -660,9 +643,7 @@ mod style {
                     ..button::Style::default()
                 },
                 Button::Destructive => button::Style {
-                    background: Some(Background::Color(Color::from_rgb(
-                        0.8, 0.2, 0.2,
-                    ))),
+                    background: Some(Background::Color(Color::from_rgb(0.8, 0.2, 0.2))),
                     border_radius: 5.0,
                     text_color: Color::WHITE,
                     shadow_offset: Vector::new(1.0, 1.0),
