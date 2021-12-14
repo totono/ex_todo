@@ -1,4 +1,5 @@
 // use iced::alignment::{self, Alignment};
+use chrono::Local;
 use iced::button::{self, Button};
 use iced::scrollable::{self, Scrollable};
 use iced::text_input::{self, TextInput};
@@ -6,9 +7,8 @@ use iced::{
     Align, Application, Checkbox, Clipboard, Column, Command, Container, Element, Font, Length,
     Row, Settings, Subscription, Text,
 };
-use std::path::PathBuf;
-
 use serde::{Deserialize, Serialize};
+use std::path::PathBuf;
 
 pub fn main() -> iced::Result {
     //    Todos::run(Settings::default())
@@ -35,6 +35,7 @@ struct State {
     dirty: bool,
     saving: bool,
     file_path: PathBuf,
+    datetime: String,
 }
 
 #[derive(Debug, Clone)]
@@ -100,14 +101,7 @@ impl Application for Todos {
                     Message::InputChanged(value) => {
                         state.input_value = value;
                     }
-                    //                    Message::CreateTask => {
-                    //                        if !state.input_value.is_empty() {
-                    //                            state
-                    //                                .tasks
-                    //                                .push(Task::new(state.input_value.clone()));
-                    //                            state.input_value.clear();
-                    //                        }
-                    //                    }
+
                     Message::FilterChanged(filter) => {
                         state.filter = filter;
                     }
@@ -126,10 +120,12 @@ impl Application for Todos {
                     Message::Dropped(event) => {
                         if let iced_native::event::Event::Window(we) = event {
                             if let iced_native::window::Event::FileDropped(path) = we {
+                                state.datetime = Local::now().format(" Added %Y/%m/%d %H:%M").to_string();
                                 state.file_path = path;
                                 state.tasks.push(Task::new(
                                     state.input_value.clone(),
                                     state.file_path.as_path().display().to_string(),
+                                            state.datetime.clone(),
                                 ));
                             }
                         }
@@ -234,6 +230,7 @@ struct Task {
     description: String,
     file_path: String,
     completed: bool,
+    date: String,
     #[serde(skip)]
     state: TaskState,
 }
@@ -242,6 +239,7 @@ struct Task {
 pub enum TaskState {
     Idle {
         edit_button: button::State,
+        start_process_button: button::State,
     },
     Editing {
         text_input: text_input::State,
@@ -253,6 +251,7 @@ impl Default for TaskState {
     fn default() -> Self {
         TaskState::Idle {
             edit_button: button::State::new(),
+            start_process_button: button::State::new(),
         }
     }
 }
@@ -264,16 +263,19 @@ pub enum TaskMessage {
     DescriptionEdited(String),
     FinishEdition,
     Delete,
+    StartProcess(PathBuf),
 }
 
 impl Task {
-    fn new(description: String, file_path: String) -> Self {
+    fn new(description: String, file_path: String,date: String) -> Self {
         Task {
             description,
             completed: false,
             file_path,
+            date,
             state: TaskState::Idle {
                 edit_button: button::State::new(),
+                start_process_button: button::State::new(),
             },
         }
     }
@@ -297,8 +299,13 @@ impl Task {
                 if !self.description.is_empty() {
                     self.state = TaskState::Idle {
                         edit_button: button::State::new(),
+                        start_process_button: button::State::new(),
                     }
                 }
+            }
+
+            TaskMessage::StartProcess(process) => {
+                open::that(process).unwrap();
             }
             TaskMessage::Delete => {}
         }
@@ -306,13 +313,16 @@ impl Task {
 
     fn view(&mut self) -> Element<TaskMessage> {
         match &mut self.state {
-            TaskState::Idle { edit_button } => {
+            TaskState::Idle {
+                edit_button,
+                start_process_button,
+            } => {
                 let checkbox =
                     Checkbox::new(self.completed, &self.description, TaskMessage::Completed)
                         .width(Length::Fill);
 
                 let path_text = Text::new(&self.file_path).size(15);
-
+                let datetime_text = Text::new(&self.date);
                 Column::new()
                     .push(
                         Row::new()
@@ -326,7 +336,12 @@ impl Task {
                                     .style(style::Button::Icon),
                             ),
                     )
-                    .push(path_text)
+                    .push(
+                        Row::new().align_items(Align::Center)
+                        .push(Button::new(start_process_button, path_text).on_press(
+                                TaskMessage::StartProcess(PathBuf::from(&self.file_path))).width(Length::Fill))
+                        .push(datetime_text),
+                    )
                     .into()
             }
             TaskState::Editing {
