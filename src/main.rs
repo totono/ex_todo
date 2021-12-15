@@ -5,7 +5,7 @@ use iced::scrollable::{self, Scrollable};
 use iced::text_input::{self, TextInput};
 use iced::{
     Align, Application, Checkbox, Clipboard, Column, Command, Container, Element, Font, Length,
-    Row, Settings, Subscription, Text,
+    Row, Settings, Subscription, Text, Image, Space
 };
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
@@ -321,7 +321,9 @@ impl Task {
                     Checkbox::new(self.completed, &self.description, TaskMessage::Completed)
                         .width(Length::Fill);
 
-                let path_text = Text::new(&self.file_path).size(15);
+                let image = Image::new("icons/icons8-text-file-64.png")
+                            .width(Length::Fill)
+                            .height(Length::Fill);
                 let datetime_text = Text::new(&self.date);
                 Column::new()
                     .push(
@@ -337,10 +339,11 @@ impl Task {
                             ),
                     )
                     .push(
-                        Row::new().align_items(Align::Center)
-                        .push(Button::new(start_process_button, path_text).on_press(
-                                TaskMessage::StartProcess(PathBuf::from(&self.file_path))).width(Length::Fill))
-                        .push(datetime_text),
+                        Row::new()
+                        .push(Button::new(start_process_button, image).on_press(
+                                TaskMessage::StartProcess(PathBuf::from(&self.file_path))))
+                        .push(Space::new(Length::Fill,Length::Units(5)))
+                        .push(datetime_text).align_items(Align::End),
                     )
                     .into()
             }
@@ -357,6 +360,7 @@ impl Task {
                 .on_submit(TaskMessage::FinishEdition)
                 .padding(10);
 
+ 
                 Row::new()
                     .spacing(20)
                     .align_items(Align::Center)
