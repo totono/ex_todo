@@ -99,6 +99,21 @@ impl Application for Todos {
 
                 match message {
 
+
+                    Message::CreateTask => {
+                        if !state.input_value.is_empty() {
+                            state.file_path = PathBuf::new();
+                            state
+                                .tasks
+                                .push(Task::new(
+                                    state.input_value.clone(),
+                                    state.file_path.clone(),
+                                    state.datetime.clone(),
+                                    ));
+                            state.input_value.clear();
+                        }
+                    }
+
                     
                     Message::InputChanged(value) => {
                         state.input_value = value;
@@ -324,11 +339,53 @@ impl Task {
                     Checkbox::new(self.completed, &self.description, TaskMessage::Completed)
                         .width(Length::Fill);
 
-                let image = Image::new("icons/icons8-text-file-64.png")
-                            .width(Length::Fill)
-                            .height(Length::Fill);
+//              let filename = self.file_path.file_name().unwrap().to_str().unwrap().to_string();
+
+
+                let filename = match self.file_path.file_name(){
+                    Some(result) => result.to_str().unwrap().to_string(),
+                    None => String::new(),
+                    };
+                
+                let file_extention = match self.file_path.extension() {
+                    Some(result) => result.to_str().unwrap().to_string(),
+                    None => String::new(),
+                    };
+
+
+//                let image = Image::new("icons/icons8-text-file-64.png")
+//                            .width(Length::Fill)
+//                            .height(Length::Fill);
+                
+                let image = match file_extention.as_str() {
+                    "txt" => Image::new("icons/icons8-txt-48.png")
+                    .width(Length::Units(30))
+                    .height(Length::Units(30)),
+
+                    "xlsx" => Image::new("icons/icons8-xls-48.png")
+                    .width(Length::Units(30))
+                    .height(Length::Units(30)),
+
+                    "jpg" => Image::new("icons/icons8-jpg-48.png")
+                    .width(Length::Units(30))
+                    .height(Length::Units(30)),
+
+                    "exe" => Image::new("icons/icons8-exe-48.png")
+                    .width(Length::Units(30))
+                    .height(Length::Units(30)),
+
+                    "zip" => Image::new("icons/icons8-zip-48.png")
+                    .width(Length::Units(30))
+                    .height(Length::Units(30)),
+
+                    _ => Image::new("")
+                    .width(Length::Units(30))
+                    .height(Length::Units(30)),
+                };
+
+                
                 let datetime_text = Text::new(&self.date);
-                let filename = self.file_path.file_name().unwrap().to_str().unwrap().to_string();
+
                 Column::new()
                     .push(
                         Row::new()
@@ -346,10 +403,13 @@ impl Task {
                         Row::new()
                         .push(Button::new(start_process_button, image).on_press(
                                 TaskMessage::StartProcess(PathBuf::from(&self.file_path))))
-                        .push(Text::new(filename))
+                        .push(Space::new(Length::Units(5),Length::Units(5)))
+                        .push(Text::new(filename)).align_items(Align::End)
                         .push(Space::new(Length::Fill,Length::Units(5)))
-                        .push(datetime_text).align_items(Align::End),
+
                     )
+                    .push(Space::new(Length::Fill,Length::Units(5)))
+                    .push(datetime_text).align_items(Align::End)
                     .into()
             }
             TaskState::Editing {
