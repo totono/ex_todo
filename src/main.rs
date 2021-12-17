@@ -98,6 +98,8 @@ impl Application for Todos {
                 let mut saved = false;
 
                 match message {
+
+                    
                     Message::InputChanged(value) => {
                         state.input_value = value;
                     }
@@ -124,9 +126,10 @@ impl Application for Todos {
                                 state.file_path = path;
                                 state.tasks.push(Task::new(
                                     state.input_value.clone(),
-                                    state.file_path.as_path().display().to_string(),
-                                            state.datetime.clone(),
+                                    state.file_path.clone(),
+                                        state.datetime.clone(),
                                 ));
+                                state.input_value.clear();
                             }
                         }
                     }
@@ -169,7 +172,7 @@ impl Application for Todos {
                 controls,
                 ..
             }) => {
-                let title = Text::new("todos")
+                let _title = Text::new("todos")
                     .width(Length::Fill)
                     .size(100)
                     .color([0.5, 0.5, 0.5])
@@ -177,7 +180,7 @@ impl Application for Todos {
 
                 let input = TextInput::new(
                     input,
-                    "What needs to be done?",
+                    "何をする？",
                     input_value,
                     Message::InputChanged,
                 )
@@ -202,16 +205,16 @@ impl Application for Todos {
                         .into()
                 } else {
                     empty_message(match filter {
-                        Filter::All => "You have not created a task yet...",
-                        Filter::Active => "All your tasks are done! :D",
-                        Filter::Completed => "You have not completed a task yet...",
+                        Filter::All => "まだ何のタスクもありません...",
+                        Filter::Active => "タスクを全て完了しました！ :D",
+                        Filter::Completed => "まだ何のタスクも完了していません...",
                     })
                 };
 
                 let content = Column::new()
                     .max_width(800)
                     .spacing(20)
-                    .push(title)
+//                  .push(title)
                     .push(input)
                     .push(controls)
                     .push(tasks);
@@ -228,7 +231,7 @@ impl Application for Todos {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct Task {
     description: String,
-    file_path: String,
+    file_path: PathBuf,
     completed: bool,
     date: String,
     #[serde(skip)]
@@ -267,7 +270,7 @@ pub enum TaskMessage {
 }
 
 impl Task {
-    fn new(description: String, file_path: String,date: String) -> Self {
+    fn new(description: String, file_path: PathBuf,date: String) -> Self {
         Task {
             description,
             completed: false,
@@ -325,6 +328,7 @@ impl Task {
                             .width(Length::Fill)
                             .height(Length::Fill);
                 let datetime_text = Text::new(&self.date);
+                let filename = self.file_path.file_name().unwrap().to_str().unwrap().to_string();
                 Column::new()
                     .push(
                         Row::new()
@@ -342,6 +346,7 @@ impl Task {
                         Row::new()
                         .push(Button::new(start_process_button, image).on_press(
                                 TaskMessage::StartProcess(PathBuf::from(&self.file_path))))
+                        .push(Text::new(filename))
                         .push(Space::new(Length::Fill,Length::Units(5)))
                         .push(datetime_text).align_items(Align::End),
                     )
