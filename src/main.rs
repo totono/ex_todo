@@ -36,6 +36,8 @@ struct State {
     saving: bool,
     file_path: PathBuf,
     datetime: String,
+    filter_input_value: String,
+    filter_input: text_input::State,
 }
 
 #[derive(Debug, Clone)]
@@ -47,6 +49,7 @@ enum Message {
     FilterChanged(Filter),
     TaskMessage(usize, TaskMessage),
     Dropped(iced_native::Event),
+    FilterTextChanged(String),
 }
 
 impl Application for Todos {
@@ -112,6 +115,10 @@ impl Application for Todos {
                                     ));
                             state.input_value.clear();
                         }
+                    }
+
+                    Message::FilterTextChanged(value) => {
+                        state.filter_input_value = value
                     }
 
                     
@@ -185,13 +192,24 @@ impl Application for Todos {
                 filter,
                 tasks,
                 controls,
+                filter_input_value,
+                filter_input,
                 ..
             }) => {
+
                 let _title = Text::new("todos")
                     .width(Length::Fill)
                     .size(100)
                     .color([0.5, 0.5, 0.5])
                     .horizontal_alignment(iced::HorizontalAlignment::Center);
+
+                    let filter_textbox =  TextInput::new(
+                        filter_input,
+                               "",
+                               filter_input_value,
+                                Message::FilterTextChanged,
+                            );
+
 
                 let input = TextInput::new(
                     input,
@@ -204,13 +222,13 @@ impl Application for Todos {
                 .on_submit(Message::CreateTask);
 
                 let controls = controls.view(&tasks, *filter);
-                let filtered_tasks = tasks.iter().filter(|task| filter.matches(task));
+                let filtered_tasks = tasks.iter().filter(|task| filter.matches(task) & filter.word_matches(task, filter_input_value));
 
                 let tasks: Element<_> = if filtered_tasks.count() > 0 {
                     tasks
                         .iter_mut()
                         .enumerate()
-                        .filter(|(_, task)| filter.matches(task))
+                        .filter(|(_, task)| filter.matches(task) & filter.word_matches(task, filter_input_value))
                         .fold(Column::new().spacing(20), |column, (i, task)| {
                             column.push(
                                 task.view()
@@ -229,8 +247,8 @@ impl Application for Todos {
                 let content = Column::new()
                     .max_width(800)
                     .spacing(20)
-//                  .push(title)
                     .push(input)
+                    .push(filter_textbox)
                     .push(controls)
                     .push(tasks);
 
@@ -339,8 +357,6 @@ impl Task {
                     Checkbox::new(self.completed, &self.description, TaskMessage::Completed)
                         .width(Length::Fill);
 
-//              let filename = self.file_path.file_name().unwrap().to_str().unwrap().to_string();
-
 
                 let filename = match self.file_path.file_name(){
                     Some(result) => result.to_str().unwrap().to_string(),
@@ -352,11 +368,6 @@ impl Task {
                     None => String::new(),
                     };
 
-
-//                let image = Image::new("icons/icons8-text-file-64.png")
-//                            .width(Length::Fill)
-//                            .height(Length::Fill);
-                
                 let image = match file_extention.as_str() {
                     "txt" => Image::new("icons/icons8-txt-48.png")
                     .width(Length::Units(30))
@@ -385,6 +396,7 @@ impl Task {
 
                 
                 let datetime_text = Text::new(&self.date);
+
 
                 Column::new()
                     .push(
@@ -476,6 +488,7 @@ impl Controls {
             button.on_press(Message::FilterChanged(filter)).padding(8)
         };
 
+
         Row::new()
             .spacing(20)
             .align_items(Align::Center)
@@ -534,6 +547,10 @@ impl Filter {
             Filter::Active => !task.completed,
             Filter::Completed => task.completed,
         }
+    }
+
+    fn word_matches(&self, task: &Task ,filter_input_value: &String) -> bool {
+        task.description.contains(filter_input_value)
     }
 }
 
