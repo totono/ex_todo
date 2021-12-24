@@ -5,10 +5,11 @@ use iced::scrollable::{self, Scrollable};
 use iced::text_input::{self, TextInput};
 use iced::{
     Align, Application, Checkbox, Clipboard, Column, Command, Container, Element, Font, Length,
-    Row, Settings, Subscription, Text, Image, Space
+    Row, Settings, Subscription, Text, Image, Space , Radio,
 };
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
+
 
 pub fn main() -> iced::Result {
     //    Todos::run(Settings::default())
@@ -16,6 +17,34 @@ pub fn main() -> iced::Result {
         default_font: Some(include_bytes!("../fonts/NotoSansJP-Regular.otf")),
         ..Settings::default()
     })
+}
+
+#[derive(Debug,Copy,Clone,Serialize, Deserialize, Eq, PartialEq)]
+pub enum Importance {
+    Low,
+    Normal,
+    High,
+}
+
+impl Importance {
+    fn all() -> [Importance; 3] {
+        [
+            Importance::Low,
+            Importance::Normal,
+            Importance::High,
+        ]
+    }
+}
+
+
+impl From<Importance> for String {
+    fn from(importance: Importance) -> String {
+        String::from(match importance {
+            Importance::Low => "Low",
+            Importance::Normal => "Normal",
+            Importance::High => "High",
+        })
+    }
 }
 
 #[derive(Debug)]
@@ -38,6 +67,7 @@ struct State {
     datetime: String,
     filter_input_value: String,
     filter_input: text_input::State,
+    selected_importance: Option<Importance>
 }
 
 #[derive(Debug, Clone)]
@@ -50,6 +80,7 @@ enum Message {
     TaskMessage(usize, TaskMessage),
     Dropped(iced_native::Event),
     FilterTextChanged(String),
+    ImportanceChanged(Importance),
 }
 
 impl Application for Todos {
@@ -112,6 +143,7 @@ impl Application for Todos {
                                     state.input_value.clone(),
                                     state.file_path.clone(),
                                     state.datetime.clone(),
+                                    Importance::from(state.selected_importance.unwrap_or(Importance::Normal)),
                                     ));
                             state.input_value.clear();
                         }
@@ -119,6 +151,10 @@ impl Application for Todos {
 
                     Message::FilterTextChanged(value) => {
                         state.filter_input_value = value
+                    }
+
+                    Message::ImportanceChanged(importance) => {
+                        state.selected_importance = Some(importance);
                     }
 
                     
@@ -150,6 +186,7 @@ impl Application for Todos {
                                     state.input_value.clone(),
                                     state.file_path.clone(),
                                         state.datetime.clone(),
+                                        Importance::from(state.selected_importance.unwrap_or(Importance::Normal)),
                                 ));
                                 state.input_value.clear();
                             }
@@ -194,6 +231,7 @@ impl Application for Todos {
                 controls,
                 filter_input_value,
                 filter_input,
+                selected_importance,
                 ..
             }) => {
 
@@ -203,12 +241,12 @@ impl Application for Todos {
                     .color([0.5, 0.5, 0.5])
                     .horizontal_alignment(iced::HorizontalAlignment::Center);
 
-                    let filter_textbox =  TextInput::new(
-                        filter_input,
-                               "",
-                               filter_input_value,
-                                Message::FilterTextChanged,
-                            );
+                let filter_textbox =  TextInput::new(
+                    filter_input,
+                           "",
+                           filter_input_value,
+                            Message::FilterTextChanged,
+                        );
 
 
                 let input = TextInput::new(
@@ -221,8 +259,22 @@ impl Application for Todos {
                 .size(30)
                 .on_submit(Message::CreateTask);
 
+                let importance_selector = Column::new()
+                .push(Importance::all().iter().cloned().fold(
+                    Row::new().spacing(5),
+                    |choices, importance| {
+                        choices.push(Radio::new(
+                            importance,
+                            importance,
+                            *selected_importance,
+                            Message::ImportanceChanged,
+                        ).text_size(20).size(20).spacing(5))
+                    },
+                ));
+
                 let controls = controls.view(&tasks, *filter);
                 let filtered_tasks = tasks.iter().filter(|task| filter.matches(task) & filter.word_matches(task, filter_input_value));
+
 
                 let tasks: Element<_> = if filtered_tasks.count() > 0 {
                     tasks
@@ -239,7 +291,7 @@ impl Application for Todos {
                 } else {
                     empty_message(match filter {
                         Filter::All => "まだ何のタスクもありません...",
-                        Filter::Active => "タスクを全て完了しました！ :D",
+                        Filter::Active => "タスクを全て完了しました :D",
                         Filter::Completed => "まだ何のタスクも完了していません...",
                     })
                 };
@@ -248,6 +300,7 @@ impl Application for Todos {
                     .max_width(800)
                     .spacing(20)
                     .push(input)
+                    .push(importance_selector)
                     .push(filter_textbox)
                     .push(controls)
                     .push(tasks);
@@ -267,6 +320,7 @@ struct Task {
     file_path: PathBuf,
     completed: bool,
     date: String,
+    importance: Importance,
     #[serde(skip)]
     state: TaskState,
 }
@@ -303,12 +357,13 @@ pub enum TaskMessage {
 }
 
 impl Task {
-    fn new(description: String, file_path: PathBuf,date: String) -> Self {
+    fn new(description: String, file_path: PathBuf,date: String , importance: Importance) -> Self {
         Task {
             description,
             completed: false,
             file_path,
             date,
+            importance,
             state: TaskState::Idle {
                 edit_button: button::State::new(),
                 start_process_button: button::State::new(),
@@ -357,6 +412,7 @@ impl Task {
                     Checkbox::new(self.completed, &self.description, TaskMessage::Completed)
                         .width(Length::Fill);
 
+                let important = Text::new(self.importance).width(Length::Fill);
 
                 let filename = match self.file_path.file_name(){
                     Some(result) => result.to_str().unwrap().to_string(),
@@ -418,8 +474,8 @@ impl Task {
                         .push(Space::new(Length::Units(5),Length::Units(5)))
                         .push(Text::new(filename)).align_items(Align::End)
                         .push(Space::new(Length::Fill,Length::Units(5)))
-
                     )
+                    .push(important)
                     .push(Space::new(Length::Fill,Length::Units(5)))
                     .push(datetime_text).align_items(Align::End)
                     .into()
@@ -552,6 +608,10 @@ impl Filter {
     fn word_matches(&self, task: &Task ,filter_input_value: &String) -> bool {
         task.description.contains(filter_input_value)
     }
+
+//    fn importance_matches(&self, task: &Task ,importance: &i8) -> bool {
+//
+//    }
 }
 
 fn loading_message<'a>() -> Element<'a, Message> {
